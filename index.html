@@ -1,0 +1,1936 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>リバーシサバイバー</title>
+    <style>
+        :root {
+            --bg-color: #0a0a0a;
+            --text-color: #ffffff;
+            --primary-color: #4CAF50;
+            --danger-color: #ff4757;
+            --exp-color: #1e90ff;
+            --fever-color: #ffaa00; /* フィーバー用 */
+            --highlight-color: rgba(255, 215, 0, 0.5); /* ひっくり返せるマスの色 */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            touch-action: none;
+            letter-spacing: 0;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background:
+                radial-gradient(circle at 50% 42%, rgba(0, 255, 200, 0.08), transparent 34%),
+                linear-gradient(135deg, #05070b 0%, #101514 54%, #06080d 100%);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: auto;
+        }
+
+        /* UI Layer */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .top-ui {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+            background: linear-gradient(180deg, rgba(8, 14, 18, 0.74), rgba(0, 0, 0, 0.48));
+            padding: 10px 15px;
+            border-radius: 12px;
+            border: 1px solid rgba(180, 255, 245, 0.2);
+            box-shadow: 0 18px 40px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .bar-container {
+            width: 100%;
+            height: 12px;
+            background-color: #222;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.8);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .boss-container {
+            height: 18px;
+            border-color: rgba(255, 216, 74, 0.35);
+            background: rgba(25, 8, 15, 0.85);
+        }
+
+        #boss-bar {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #ff2f6d, #ff9f43, #ffd84a);
+            box-shadow: 0 0 18px rgba(255, 159, 67, 0.85);
+            transition: width 0.12s linear;
+        }
+
+        #boss-label {
+            font-size: 0.85rem;
+            color: #ffd84a;
+            letter-spacing: 0.08em;
+            text-align: center;
+            text-shadow: 0 0 12px rgba(255, 216, 74, 0.7);
+        }
+
+        #exp-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #18e0ff, #3f7dff, #a45cff);
+            width: 0%;
+            transition: width 0.1s linear;
+            box-shadow: 0 0 16px rgba(30, 144, 255, 0.9);
+        }
+
+        #fever-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3);
+            background-size: 200% 100%;
+            width: 0%;
+            transition: width 0.1s linear;
+            box-shadow: 0 0 10px var(--fever-color);
+            animation: rainbowMove 2s linear infinite;
+        }
+
+        @keyframes rainbowMove {
+            0% { background-position: 100% 0; }
+            100% { background-position: 0 0; }
+        }
+
+        #hp-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #ff2f6d, #ff6b47);
+            width: 100%;
+            transition: width 0.2s ease-out;
+            box-shadow: 0 0 16px rgba(255, 71, 87, 0.9);
+        }
+
+        .stats-text {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            font-size: 1.1rem;
+            text-shadow: 1px 1px 3px #000;
+        }
+
+        /* Modals */
+        .modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background:
+                radial-gradient(circle at 50% 35%, rgba(0, 230, 255, 0.18), transparent 32%),
+                rgba(0, 0, 0, 0.78);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            pointer-events: auto;
+            backdrop-filter: blur(3px);
+        }
+
+        .modal-content {
+            background: linear-gradient(180deg, rgba(22, 28, 34, 0.98), rgba(9, 11, 16, 0.98));
+            padding: 30px;
+            border-radius: 16px;
+            text-align: center;
+            max-width: 90%;
+            width: 450px;
+            box-shadow: 0 24px 80px rgba(0,0,0,0.85), 0 0 42px rgba(0, 224, 255, 0.18);
+            border: 1px solid rgba(190, 255, 250, 0.18);
+        }
+
+        .modal-content h1 {
+            color: white;
+            font-size: 2rem;
+            margin-bottom: 5px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+
+        .subtitle {
+            color: var(--primary-color);
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        .instruction {
+            text-align: left;
+            background: #222;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            line-height: 1.6;
+            font-size: 0.95rem;
+            color: #ddd;
+        }
+        
+        .instruction strong {
+            color: gold;
+        }
+
+        button {
+            background: linear-gradient(135deg, #00d4ff, #2f6cff 48%, #9c4dff);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+            box-shadow: 0 0 22px rgba(0, 212, 255, 0.36), 0 8px 24px rgba(47, 108, 255, 0.35);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.6);
+        }
+        
+        button:active {
+            transform: translateY(1px);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Upgrade Options */
+        .upgrade-btn {
+            background: #2a2a2a;
+            border: 2px solid #444;
+            color: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 12px;
+            text-align: left;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            box-shadow: none;
+            outline: none; /* キーボードフォーカス時のデフォルトアウトラインを消す */
+        }
+
+        .upgrade-btn:hover, .upgrade-btn.selected {
+            background: #333;
+            border-color: var(--exp-color);
+            transform: scale(1.02);
+            box-shadow: 0 0 15px rgba(30, 144, 255, 0.3);
+        }
+
+        .upgrade-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--exp-color);
+        }
+
+        .upgrade-desc {
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="ui-layer">
+        <div class="top-ui">
+            <div class="stats-text">
+                <span id="level-display">LV 1</span>
+                <span id="time-display">00:00</span>
+            </div>
+            <div class="bar-container" title="経験値">
+                <div id="exp-bar"></div>
+            </div>
+            <div class="bar-container" title="フィーバー">
+                <div id="fever-bar"></div>
+            </div>
+            <div class="bar-container" title="HP">
+                <div id="hp-bar"></div>
+            </div>
+            <div id="boss-label" class="hidden">DUEL BOSS</div>
+            <div id="boss-bar-container" class="bar-container boss-container hidden" title="ボスHP">
+                <div id="boss-bar"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Modal -->
+    <div id="start-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h1>リバーシサバイバー</h1>
+            <div class="subtitle">ひっくり返して、爆砕せよ！</div>
+            <div class="instruction">
+                📱 画面をスワイプ（PCはWASD/矢印キー）で移動。<br><br>
+                移動中、足元に「白石」を置き続けます。<br>
+                盤面の<strong>黄色く光っているマス</strong>に移動すると、敵の「黒石」を挟んでひっくり返し、<strong>反転ライン攻撃</strong>と爆発で敵を一掃できます！<br><br>
+                自分の<strong>白マス</strong>の上では移動速度と回復力が上がり、敵は弱体化します。安全地帯を広げながら光るマスを狙いましょう！<br>
+                ひっくり返すと<strong>フィーバーゲージ</strong>が溜まり、満タンになると無双モード突入！
+            </div>
+            <button id="start-btn">ゲームスタート</button>
+        </div>
+    </div>
+
+    <!-- Level Up Modal -->
+    <div id="level-up-modal" class="modal-overlay hidden">
+        <div class="modal-content" style="width: 500px;">
+            <h2 style="color: var(--exp-color); margin-bottom: 20px; font-size: 1.8rem;">レベルアップ！</h2>
+            <p style="margin-bottom: 15px; color: #ccc;">スキルを選択してください (矢印キー↑↓ または W/S で選択、Enter で決定)</p>
+            <div id="upgrade-container">
+                <!-- 動的追加 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="game-over-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h1 style="color: var(--danger-color);">GAME OVER</h1>
+            <p id="result-time" style="font-size: 1.2rem; margin: 20px 0 10px;">生存時間: 00:00</p>
+            <p id="result-level" style="font-size: 1.2rem; margin-bottom: 30px; color: gold;">到達レベル: 1</p>
+            <button id="restart-btn" style="background: linear-gradient(135deg, #ff2f6d, #ff9f43 52%, #ffd84a); box-shadow: 0 0 28px rgba(255, 159, 67, 0.45);">もう一度プレイ</button>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * リバーシサバイバー 改善版
+ */
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// UI Elements
+const ui = {
+    expBar: document.getElementById('exp-bar'),
+    feverBar: document.getElementById('fever-bar'), // フィーバーバー追加
+    hpBar: document.getElementById('hp-bar'),
+    bossBar: document.getElementById('boss-bar'),
+    bossBarContainer: document.getElementById('boss-bar-container'),
+    bossLabel: document.getElementById('boss-label'),
+    time: document.getElementById('time-display'),
+    level: document.getElementById('level-display'),
+    startModal: document.getElementById('start-modal'),
+    levelUpModal: document.getElementById('level-up-modal'),
+    gameOverModal: document.getElementById('game-over-modal'),
+    upgradeContainer: document.getElementById('upgrade-container')
+};
+
+// --- ゲーム定数 ---
+const BOARD_COLS = 20;
+const BOARD_ROWS = 20;
+let CELL_SIZE = 40;
+let BOARD_OFFSET_X = 0;
+let BOARD_OFFSET_Y = 0;
+
+const STATE_EMPTY = 0;
+const STATE_BLACK = 1; // 敵陣
+const STATE_WHITE = 2; // 自陣
+
+// --- ゲーム状態管理 ---
+let gameState = 'START'; // START, PLAYING, PAUSED, GAMEOVER
+let lastTime = 0;
+let gameTime = 0;
+let shakeAmount = 0;
+let bossActive = false;
+let bossEnemy = null;
+let nextBossTime = 60;
+let bossDefeatCount = 0;
+let duelMessageTimer = 0;
+
+// エンティティ
+let player;
+let enemies = [];
+let gems = [];
+let damageAreas = [];
+let lineAttacks = [];
+let particles = [];
+let shockwaves = [];
+let damageTexts = [];
+
+const MAX_DAMAGE_AREAS = 72;
+const MAX_LINE_ATTACKS = 18;
+const MAX_PARTICLES = 150;
+const MAX_SHOCKWAVES = 28;
+const MAX_DAMAGE_TEXTS = 36;
+const HIGH_EFFECT_LOAD = 95;
+const BOSS_INTERVAL = 60;
+
+// 盤面 (状態のみ保持)
+let board = [];
+// 光らせる（フリップ可能な）マスのリストキャッシュ
+let flippableCache = [];
+
+// フィーバー関連
+const MAX_FEVER = 100;
+let feverGauge = 0;
+let isFever = false;
+let feverTimer = 0;
+let feverIntroTimer = 0;
+
+// スキル選択関連
+let currentUpgradeChoices = [];
+let selectedUpgradeIndex = 0;
+
+// 入力
+const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false };
+const joystick = { active: false, startX: 0, startY: 0, currentX: 0, currentY: 0, vectorX: 0, vectorY: 0 };
+
+// 8方向ベクトル (リバーシ判定用)
+const DIRS = [[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]];
+
+// --- ユーティリティ ---
+function distance(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); }
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function distanceToSegment(px, py, ax, ay, bx, by) {
+    const vx = bx - ax;
+    const vy = by - ay;
+    const wx = px - ax;
+    const wy = py - ay;
+    const lenSq = vx * vx + vy * vy;
+    if (lenSq === 0) return distance(px, py, ax, ay);
+
+    const t = clamp((wx * vx + wy * vy) / lenSq, 0, 1);
+    const cx = ax + vx * t;
+    const cy = ay + vy * t;
+    return distance(px, py, cx, cy);
+}
+
+function pushCapped(list, item, max) {
+    list.push(item);
+    if (list.length > max) {
+        list.splice(0, list.length - max);
+    }
+}
+
+function addParticle(p) {
+    pushCapped(particles, p, MAX_PARTICLES);
+}
+
+function addShockwave(s) {
+    pushCapped(shockwaves, s, MAX_SHOCKWAVES);
+}
+
+function addDamageText(t) {
+    pushCapped(damageTexts, t, MAX_DAMAGE_TEXTS);
+}
+
+function addDamageArea(d) {
+    pushCapped(damageAreas, d, MAX_DAMAGE_AREAS);
+}
+
+function addLineAttack(a) {
+    pushCapped(lineAttacks, a, MAX_LINE_ATTACKS);
+}
+
+function formatTime(seconds) {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+}
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    // 画面に収まるようにセルサイズを計算（少し余白を取る）
+    const padding = 10;
+    const maxW = canvas.width - padding * 2;
+    const maxH = canvas.height - padding * 2;
+    
+    CELL_SIZE = Math.floor(Math.min(maxW / BOARD_COLS, maxH / BOARD_ROWS));
+    
+    BOARD_OFFSET_X = Math.floor((canvas.width - CELL_SIZE * BOARD_COLS) / 2);
+    BOARD_OFFSET_Y = Math.floor((canvas.height - CELL_SIZE * BOARD_ROWS) / 2);
+}
+
+// 盤面上の指定座標でフリップできる石のリストを返す
+function getFlippedStones(cx, cy) {
+    let flippedList = [];
+    if (cx < 0 || cx >= BOARD_COLS || cy < 0 || cy >= BOARD_ROWS) return flippedList;
+
+    for (let [dx, dy] of DIRS) {
+        let nx = cx + dx;
+        let ny = cy + dy;
+        let tempFlippable = [];
+
+        // 黒石が連続している間進む
+        while (nx >= 0 && nx < BOARD_COLS && ny >= 0 && ny < BOARD_ROWS && board[ny][nx] === STATE_BLACK) {
+            tempFlippable.push({x: nx, y: ny});
+            nx += dx;
+            ny += dy;
+        }
+
+        // 黒石の連続の先に白石があればフリップ成立
+        if (nx >= 0 && nx < BOARD_COLS && ny >= 0 && ny < BOARD_ROWS && board[ny][nx] === STATE_WHITE) {
+            if (tempFlippable.length > 0) {
+                flippedList.push(...tempFlippable);
+            }
+        }
+    }
+    return flippedList;
+}
+
+// 盤面全体からフリップ可能なマスのリストを更新
+function updateFlippableCache() {
+    flippableCache = [];
+    for (let y = 0; y < BOARD_ROWS; y++) {
+        for (let x = 0; x < BOARD_COLS; x++) {
+            if (board[y][x] !== STATE_WHITE) {
+                const list = getFlippedStones(x, y);
+                if (list.length > 0) {
+                    flippableCache.push({x, y, count: list.length});
+                }
+            }
+        }
+    }
+}
+
+// --- クラス定義 ---
+
+class Player {
+    constructor() {
+        this.x = BOARD_COLS / 2;
+        this.y = BOARD_ROWS / 2;
+        this.radius = 0.4;
+        
+        this.maxHp = 100;
+        this.hp = this.maxHp;
+        this.baseSpeed = 5.0; // 少し速くして遊びやすく
+        this.speedMult = 1.0;
+        
+        this.placeCooldown = 0.8; // 通常の石置き間隔
+        this.placeTimer = 0;
+        
+        this.blastDamage = 30;
+        this.blastRadiusMult = 1.2;
+        
+        this.level = 1;
+        this.exp = 0;
+        this.expToNext = 15;
+        this.magnetRange = 3.0;
+        
+        // フィーバー時の自動塗りつぶし用タイマー
+        this.feverPulseTimer = 0;
+    }
+
+    get speed() { 
+        // フィーバー中は足が速くなる
+        const cx = Math.floor(this.x);
+        const cy = Math.floor(this.y);
+        const isOnSafeTile = cx >= 0 && cx < BOARD_COLS && cy >= 0 && cy < BOARD_ROWS && board[cy][cx] === STATE_WHITE;
+        return this.baseSpeed * this.speedMult * (isFever ? 1.5 : 1.0) * (isOnSafeTile ? 1.22 : 1.0); 
+    }
+
+    update(dt) {
+        let dx = 0, dy = 0;
+        
+        if (keys.w || keys.ArrowUp) dy -= 1;
+        if (keys.s || keys.ArrowDown) dy += 1;
+        if (keys.a || keys.ArrowLeft) dx -= 1;
+        if (keys.d || keys.ArrowRight) dx += 1;
+        
+        if (joystick.active && (joystick.vectorX !== 0 || joystick.vectorY !== 0)) {
+            dx = joystick.vectorX;
+            dy = joystick.vectorY;
+        } else if (dx !== 0 || dy !== 0) {
+            const len = Math.hypot(dx, dy);
+            dx /= len;
+            dy /= len;
+        }
+
+        let isMoving = (dx !== 0 || dy !== 0);
+
+        if (isMoving) {
+            this.x += dx * this.speed * dt;
+            this.y += dy * this.speed * dt;
+            this.x = Math.max(0, Math.min(BOARD_COLS - 0.01, this.x)); // はみ出し防止
+            this.y = Math.max(0, Math.min(BOARD_ROWS - 0.01, this.y));
+        }
+
+        const cx = Math.floor(this.x);
+        const cy = Math.floor(this.y);
+
+        // 石を置く判定
+        this.placeTimer -= dt;
+        
+        // 1. 今いるマスがフリップ可能な場合、クールダウン関係なく即座に発動（大爆発）
+        let flippedList = getFlippedStones(cx, cy);
+        if (flippedList.length > 0 && board[cy][cx] !== STATE_WHITE) {
+            this.executeFlip(cx, cy, flippedList);
+            this.placeTimer = this.placeCooldown; // クールダウンリセット
+        } 
+        // 2. 移動中でクールダウンが明けていれば、足元に布石として置く
+        else if (isMoving && this.placeTimer <= 0 && board[cy][cx] !== STATE_WHITE) {
+            board[cy][cx] = STATE_WHITE;
+            createPlacementEffect(cx, cy);
+            this.placeTimer = this.placeCooldown;
+            updateFlippableCache(); // 盤面が変わったので更新
+        }
+
+        // フィーバー状態の処理
+        if (isFever) {
+            feverTimer -= dt;
+            if (feverTimer <= 0) {
+                isFever = false;
+            } else {
+                this.feverPulseTimer -= dt;
+                if (this.feverPulseTimer <= 0) {
+                    this.feverPulseTimer = 0.15; // 0.15秒ごとに周囲を白に塗る
+                    const cx = Math.floor(this.x);
+                    const cy = Math.floor(this.y);
+                    let painted = false;
+                    
+                    for(let dy = -2; dy <= 2; dy++) {
+                        for(let dx = -2; dx <= 2; dx++) {
+                            if(dx*dx + dy*dy <= 4) { // 半径2マス
+                                let nx = cx + dx, ny = cy + dy;
+                                if(nx >= 0 && nx < BOARD_COLS && ny >= 0 && ny < BOARD_ROWS) {
+                                    if(board[ny][nx] !== STATE_WHITE) {
+                                        board[ny][nx] = STATE_WHITE;
+                                        createPlacementEffect(nx, ny);
+                                        // 塗りつぶしと同時に小ダメージをまき散らす
+                                        addDamageArea(new DamageArea(nx + 0.5, ny + 0.5, this.blastDamage * 0.5, 0.8));
+                                        painted = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (painted) updateFlippableCache();
+                }
+            }
+        }
+
+        // HP自然回復。白マス上は安全地帯として回復量が増える
+        if(this.hp < this.maxHp) {
+            const isOnSafeTile = board[cy][cx] === STATE_WHITE;
+            this.hp += (isOnSafeTile ? 8 : 2) * dt;
+            if(this.hp > this.maxHp) this.hp = this.maxHp;
+            updateUI();
+        }
+    }
+
+    executeFlip(cx, cy, flippedList) {
+        // 起点に白石を置く
+        board[cy][cx] = STATE_WHITE;
+        createPlacementEffect(cx, cy);
+
+        // フリップ処理
+        for (let cell of flippedList) {
+            board[cell.y][cell.x] = STATE_WHITE;
+            
+            // 爆発ダメージエリア生成
+            addDamageArea(new DamageArea(cell.x + 0.5, cell.y + 0.5, this.blastDamage, this.blastRadiusMult));
+        }
+        
+        // 画面揺れ
+        shakeAmount = Math.min(24, 5 + flippedList.length * 1.9);
+        addShockwave(new Shockwave(cx + 0.5, cy + 0.5, 0.6, 2.8 + flippedList.length * 0.16, '#7cf7ff', 0.55));
+        if (flippedList.length >= 6) {
+            addDamageText(new DamageText(cx + 0.5, cy + 0.2, `${flippedList.length} FLIP!`, '#7cf7ff', 1.15, 1.25));
+        }
+        
+        // 視覚効果
+        createFlipEffect(flippedList);
+        createLineAttacks(cx, cy, flippedList, this.blastDamage);
+        
+        // フィーバーゲージ増加 (フリップした枚数に応じて)
+        if (!isFever) {
+            feverGauge += flippedList.length * 4;
+            if (feverGauge >= MAX_FEVER) {
+                feverGauge = 0;
+                isFever = true;
+                feverTimer = 5.0; // 5秒間フィーバー
+                feverIntroTimer = 1.0;
+                addDamageText(new DamageText(this.x, this.y - 0.2, 'FEVER', '#ffd84a', 1.4, 1.8));
+                // 画面揺れ特大
+                shakeAmount = 25;
+            }
+        }
+        
+        // 盤面更新
+        updateFlippableCache();
+    }
+
+    takeDamage(amount) {
+        if (isFever) return; // フィーバー中は無敵
+
+        this.hp -= amount;
+        updateUI();
+        // 画面を赤く光らせるエフェクト
+        document.getElementById('game-container').style.boxShadow = "inset 0 0 50px rgba(255,0,0,0.5)";
+        setTimeout(() => document.getElementById('game-container').style.boxShadow = "none", 100);
+        shakeAmount = Math.max(shakeAmount, 8);
+
+        if (this.hp <= 0) {
+            gameOver();
+        }
+    }
+
+    gainExp(amount) {
+        this.exp += amount;
+        if (this.exp >= this.expToNext) {
+            this.exp -= this.expToNext;
+            this.level++;
+            // 序盤は上がりやすく、後半はきつく
+            this.expToNext = Math.floor(this.expToNext * 1.3 + 10);
+            triggerLevelUp();
+        }
+        updateUI();
+    }
+
+    draw(ctx) {
+        const px = BOARD_OFFSET_X + this.x * CELL_SIZE;
+        const py = BOARD_OFFSET_Y + this.y * CELL_SIZE;
+        const r = this.radius * CELL_SIZE;
+
+        // プレイヤー本体（光る白い玉）
+        ctx.beginPath();
+        ctx.arc(px, py, r, 0, Math.PI * 2);
+        
+        let grad;
+        if (isFever) {
+            // フィーバー中は虹色に光る
+            grad = ctx.createRadialGradient(px - r*0.3, py - r*0.3, r*0.1, px, py, r);
+            const hue = (gameTime * 360) % 360;
+            grad.addColorStop(0, '#ffffff');
+            grad.addColorStop(0.5, `hsl(${hue}, 100%, 50%)`);
+            grad.addColorStop(1, `hsl(${(hue + 180) % 360}, 100%, 50%)`);
+        } else {
+            grad = ctx.createRadialGradient(px - r*0.3, py - r*0.3, r*0.1, px, py, r);
+            grad.addColorStop(0, '#ffffff');
+            grad.addColorStop(0.7, '#dddddd');
+            grad.addColorStop(1, '#888888');
+        }
+        
+        ctx.fillStyle = grad;
+        ctx.fill();
+        
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#fff';
+        ctx.stroke();
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = isFever ? 'rgba(255, 220, 80, 0.9)' : 'rgba(124, 247, 255, 0.55)';
+        ctx.lineWidth = Math.max(2, CELL_SIZE * 0.08);
+        ctx.shadowBlur = isFever ? 28 : 16;
+        ctx.shadowColor = isFever ? '#ffd84a' : '#7cf7ff';
+        ctx.beginPath();
+        ctx.arc(px, py, r * (1.35 + Math.sin(gameTime * 8) * 0.08), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+
+        // 磁石範囲をうっすら表示
+        ctx.beginPath();
+        ctx.arc(px, py, this.magnetRange * CELL_SIZE, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+}
+
+class Enemy {
+    constructor(x, y, type = 0) {
+        this.x = x;
+        this.y = y;
+        this.radius = 0.35;
+        this.paintTimer = 0;
+        this.safeTileDamageTimer = 0;
+        
+        // 時間経過で敵を強化
+        const timeMultiplier = 1 + (gameTime / 60) * 0.5;
+
+        if (type === 0) { // ノーマル
+            this.hp = 15 * timeMultiplier;
+            this.speed = 2.0 + Math.random() * 0.5;
+            this.damage = 10;
+            this.color = '#ff3388'; // 視認性の高いピンク
+            this.paintCooldown = 0.4;
+        } else if (type === 1) { // スピード
+            this.hp = 10 * timeMultiplier;
+            this.speed = 3.5 + Math.random() * 0.8;
+            this.damage = 5;
+            this.color = '#ffdd00'; // 視認性の高い黄色
+            this.paintCooldown = 0.2;
+            this.radius = 0.25;
+        } else { // タンク
+            this.hp = 60 * timeMultiplier;
+            this.speed = 1.2 + Math.random() * 0.3;
+            this.damage = 20;
+            this.color = '#00ddff'; // 視認性の高い水色
+            this.paintCooldown = 0.6;
+            this.radius = 0.5;
+        }
+        this.isBoss = type === 3;
+        if (this.isBoss) {
+            const bossScale = 1 + bossDefeatCount * 0.35;
+            this.hp = 520 * bossScale + gameTime * 4;
+            this.speed = 1.45 + bossDefeatCount * 0.08;
+            this.damage = 28 + bossDefeatCount * 4;
+            this.color = '#ff2f6d';
+            this.paintCooldown = 0.18;
+            this.radius = 1.05;
+        }
+        this.maxHp = this.hp;
+    }
+
+    update(dt) {
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const dist = Math.hypot(dx, dy);
+        const cx = Math.floor(this.x);
+        const cy = Math.floor(this.y);
+        const isOnSafeTile = cx >= 0 && cx < BOARD_COLS && cy >= 0 && cy < BOARD_ROWS && board[cy][cx] === STATE_WHITE;
+        
+        if (dist > 0) {
+            const territorySlow = isOnSafeTile ? 0.65 : 1.0;
+            this.x += (dx / dist) * this.speed * territorySlow * dt;
+            this.y += (dy / dist) * this.speed * territorySlow * dt;
+        }
+
+        if (isOnSafeTile) {
+            this.safeTileDamageTimer += dt;
+            if (this.safeTileDamageTimer >= 0.5) {
+                const safeDamage = this.isBoss ? 8 : 3;
+                this.hp = Math.max(1, this.hp - safeDamage);
+                addDamageText(new DamageText(this.x, this.y, safeDamage));
+                this.safeTileDamageTimer = 0;
+            }
+        } else {
+            this.safeTileDamageTimer = 0;
+        }
+
+        // 足元を黒く塗る（陣地を奪う）
+        this.paintTimer += dt;
+        if (this.paintTimer >= this.paintCooldown) {
+            const cx = Math.floor(this.x);
+            const cy = Math.floor(this.y);
+            if (cx >= 0 && cx < BOARD_COLS && cy >= 0 && cy < BOARD_ROWS) {
+                paintEnemyTerritory(cx, cy, this.isBoss ? 1 : 0);
+            }
+            this.paintTimer = 0;
+        }
+
+        // プレイヤーとの衝突判定
+        if (dist < player.radius + this.radius) {
+            player.takeDamage(this.damage);
+            // 弾き飛ばし
+            if (dist > 0) {
+                this.x -= (dx / dist) * (this.isBoss ? 0.35 : 0.8);
+                this.y -= (dy / dist) * (this.isBoss ? 0.35 : 0.8);
+            }
+        }
+    }
+
+    takeDamage(amount) {
+        this.hp -= amount;
+        // ダメージテキストを少し大きめに
+        addDamageText(new DamageText(this.x, this.y, Math.floor(amount)));
+        
+        // ダメージエフェクト（ヒットストップ風に少し下がる）
+        const dx = this.x - player.x;
+        const dy = this.y - player.y;
+        const dist = Math.hypot(dx, dy);
+        if(dist > 0) {
+            this.x += (dx/dist) * 0.2;
+            this.y += (dy/dist) * 0.2;
+        }
+
+        if (this.hp <= 0) {
+            this.die();
+            return true;
+        }
+        return false;
+    }
+
+    die() {
+        // 経験値ジェム
+        const gemCount = this.isBoss ? 18 : 1;
+        for (let i = 0; i < gemCount; i++) {
+            gems.push(new Gem(this.x, this.y, this.isBoss ? 2 : 1));
+        }
+        addShockwave(new Shockwave(this.x, this.y, 0.2, (this.isBoss ? 3.5 : 1.1) + this.radius, this.color, this.isBoss ? 0.7 : 0.35));
+        if (this.isBoss) {
+            finishBossMatch();
+        }
+        // 死亡パーティクル
+        const particleCount = this.isBoss ? 28 : (particles.length > HIGH_EFFECT_LOAD ? 8 : 14);
+        for(let i=0; i<particleCount; i++){
+            const p = new Particle(this.x, this.y, i % 3 === 0 ? '#ffffff' : this.color);
+            p.vx *= 2.2;
+            p.vy *= 2.2;
+            p.size *= 1.1;
+            p.glow = particles.length > HIGH_EFFECT_LOAD ? 0 : (this.isBoss ? 20 : 14);
+            addParticle(p);
+        }
+    }
+
+    draw(ctx) {
+        const px = BOARD_OFFSET_X + this.x * CELL_SIZE;
+        const py = BOARD_OFFSET_Y + this.y * CELL_SIZE;
+        const r = this.radius * CELL_SIZE;
+
+        ctx.beginPath();
+        // ギザギザの形
+        const spikes = this.isBoss ? 10 : 6;
+        for (let i = 0; i < spikes * 2; i++) {
+            const radius = i % 2 === 0 ? r : r * 0.6;
+            const angle = (i / (spikes * 2)) * Math.PI * 2;
+            const x = px + Math.cos(angle) * radius;
+            const y = py + Math.sin(angle) * radius;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        
+        // ダメージを受けている時は白っぽくフラッシュ
+        const hpRatio = this.hp / this.maxHp;
+        ctx.fillStyle = this.color;
+        ctx.fill();
+        
+        // 常に太い白縁で目立たせる
+        ctx.lineWidth = this.isBoss ? 5 : 3;
+        ctx.strokeStyle = `rgba(255, 255, 255, ${0.5 + hpRatio * 0.5})`; 
+        ctx.stroke();
+
+        // 目を描いて生物感と視認性をさらにアップ
+        const eyeR = r * 0.25;
+        const pupilR = r * 0.1;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        // 左目
+        ctx.arc(px - r*0.3, py - r*0.1, eyeR, 0, Math.PI*2);
+        // 右目
+        ctx.arc(px + r*0.3, py - r*0.1, eyeR, 0, Math.PI*2);
+        ctx.fill();
+        // 黒目
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.arc(px - r*0.3, py - r*0.1, pupilR, 0, Math.PI*2);
+        ctx.arc(px + r*0.3, py - r*0.1, pupilR, 0, Math.PI*2);
+        ctx.fill();
+    }
+}
+
+class DamageArea {
+    constructor(x, y, damage, radiusMult) {
+        this.x = x;
+        this.y = y;
+        this.damage = damage;
+        this.radius = 1.5 * radiusMult; // 爆発半径広め
+        this.life = 0.4;
+        this.maxLife = 0.4;
+        this.hitEnemies = new Set();
+    }
+
+    update(dt) {
+        this.life -= dt;
+        
+        for (let i = enemies.length - 1; i >= 0; i--) {
+            const enemy = enemies[i];
+            if (this.hitEnemies.has(enemy)) continue;
+
+            const dist = distance(this.x, this.y, enemy.x, enemy.y);
+            if (dist < this.radius + enemy.radius) {
+                if (enemy.takeDamage(this.damage)) {
+                    enemies.splice(i, 1);
+                }
+                this.hitEnemies.add(enemy);
+            }
+        }
+    }
+
+    draw(ctx) {
+        const px = BOARD_OFFSET_X + this.x * CELL_SIZE;
+        const py = BOARD_OFFSET_Y + this.y * CELL_SIZE;
+        const r = this.radius * CELL_SIZE;
+        const alpha = this.life / this.maxLife;
+
+        const isBusy = damageAreas.length > 34 || particles.length > HIGH_EFFECT_LOAD;
+        if (isBusy) {
+            ctx.fillStyle = isFever
+                ? `hsla(${(gameTime * 360) % 360}, 100%, 62%, ${alpha * 0.34})`
+                : `rgba(110, 220, 255, ${alpha * 0.34})`;
+        } else {
+            // 爆発エフェクト（グラデーション）
+            const grad = ctx.createRadialGradient(px, py, 0, px, py, r);
+            if (isFever) {
+                // フィーバー中は爆発も虹色に
+                const hue = (gameTime * 360) % 360;
+                grad.addColorStop(0, `hsla(${hue}, 100%, 70%, ${alpha})`);
+                grad.addColorStop(0.4, `hsla(${(hue + 60) % 360}, 100%, 60%, ${alpha * 0.8})`);
+                grad.addColorStop(1, `rgba(0, 0, 0, 0)`);
+            } else {
+                grad.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
+                grad.addColorStop(0.4, `rgba(100, 200, 255, ${alpha * 0.8})`);
+                grad.addColorStop(1, `rgba(0, 100, 255, 0)`);
+            }
+            ctx.fillStyle = grad;
+        }
+
+        ctx.beginPath();
+        ctx.arc(px, py, r, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.7})`;
+        ctx.lineWidth = Math.max(2, CELL_SIZE * 0.05);
+        ctx.beginPath();
+        ctx.arc(px, py, r * (1.05 - alpha * 0.35), 0, Math.PI * 2);
+        ctx.stroke();
+
+        if (this.isBoss) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.strokeStyle = `rgba(255, 216, 74, ${0.45 + Math.sin(gameTime * 6) * 0.18})`;
+            ctx.lineWidth = Math.max(2, CELL_SIZE * 0.08);
+            ctx.beginPath();
+            ctx.arc(px, py, r * 1.35, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+        ctx.restore();
+    }
+}
+
+class LineAttack {
+    constructor(startX, startY, endX, endY, damage, width, count) {
+        this.startX = startX;
+        this.startY = startY;
+        this.endX = endX;
+        this.endY = endY;
+        this.damage = damage;
+        this.width = width;
+        this.count = count;
+        this.life = 0.34;
+        this.maxLife = 0.34;
+        this.hitEnemies = new Set();
+        this.seed = Math.random() * Math.PI * 2;
+    }
+
+    update(dt) {
+        this.life -= dt;
+
+        for (let i = enemies.length - 1; i >= 0; i--) {
+            const enemy = enemies[i];
+            if (this.hitEnemies.has(enemy)) continue;
+
+            const dist = distanceToSegment(enemy.x, enemy.y, this.startX, this.startY, this.endX, this.endY);
+            if (dist < this.width + enemy.radius) {
+                if (enemy.takeDamage(this.damage)) {
+                    enemies.splice(i, 1);
+                }
+                this.hitEnemies.add(enemy);
+            }
+        }
+    }
+
+    draw(ctx) {
+        const alpha = this.life / this.maxLife;
+        const sx = BOARD_OFFSET_X + this.startX * CELL_SIZE;
+        const sy = BOARD_OFFSET_Y + this.startY * CELL_SIZE;
+        const ex = BOARD_OFFSET_X + this.endX * CELL_SIZE;
+        const ey = BOARD_OFFSET_Y + this.endY * CELL_SIZE;
+
+        ctx.save();
+        ctx.lineCap = 'round';
+        const useGlow = lineAttacks.length <= 8 && particles.length <= HIGH_EFFECT_LOAD;
+        if (useGlow) {
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.shadowBlur = 14;
+            ctx.shadowColor = '#7cf7ff';
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(ex, ey);
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.lineWidth = CELL_SIZE * (0.42 + this.count * 0.06);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(ex, ey);
+        ctx.strokeStyle = `rgba(62, 235, 255, ${alpha * 0.95})`;
+        ctx.lineWidth = CELL_SIZE * 0.2;
+        ctx.stroke();
+
+        const branches = useGlow ? 2 : 1;
+        for (let i = 0; i < branches; i++) {
+            const wiggle = Math.sin(gameTime * 28 + this.seed + i) * CELL_SIZE * 0.12;
+            ctx.beginPath();
+            ctx.moveTo(sx + wiggle, sy - wiggle);
+            ctx.lineTo(ex - wiggle, ey + wiggle);
+            ctx.strokeStyle = `rgba(190, 90, 255, ${alpha * (useGlow ? 0.42 : 0.24)})`;
+            ctx.lineWidth = CELL_SIZE * 0.05;
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+}
+
+class Shockwave {
+    constructor(x, y, startRadius, endRadius, color, alpha = 0.5) {
+        this.x = x;
+        this.y = y;
+        this.startRadius = startRadius;
+        this.endRadius = endRadius;
+        this.color = color;
+        this.alpha = alpha;
+        this.life = 0.45;
+        this.maxLife = 0.45;
+    }
+
+    update(dt) {
+        this.life -= dt;
+    }
+
+    draw(ctx) {
+        const t = 1 - this.life / this.maxLife;
+        const r = (this.startRadius + (this.endRadius - this.startRadius) * t) * CELL_SIZE;
+        const alpha = (1 - t) * this.alpha;
+        const px = BOARD_OFFSET_X + this.x * CELL_SIZE;
+        const py = BOARD_OFFSET_Y + this.y * CELL_SIZE;
+
+        ctx.save();
+        const useGlow = shockwaves.length <= 10 && particles.length <= HIGH_EFFECT_LOAD;
+        if (useGlow) {
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = this.color;
+        }
+        ctx.strokeStyle = this.color;
+        ctx.globalAlpha = alpha;
+        ctx.lineWidth = Math.max(2, CELL_SIZE * (0.12 - t * 0.06));
+        ctx.beginPath();
+        ctx.arc(px, py, r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+    }
+}
+
+class Gem {
+    constructor(x, y, value) {
+        this.x = x + (Math.random() - 0.5) * 0.5;
+        this.y = y + (Math.random() - 0.5) * 0.5;
+        this.value = value;
+        this.radius = 0.15;
+        this.isMagnetic = false;
+        this.speed = 0;
+        this.bobOffset = Math.random() * Math.PI * 2;
+    }
+
+    update(dt) {
+        const dist = distance(this.x, this.y, player.x, player.y);
+        
+        if (dist < player.magnetRange) {
+            this.isMagnetic = true;
+        }
+
+        if (this.isMagnetic) {
+            this.speed += 25 * dt; // 吸い込み加速
+            const dx = player.x - this.x;
+            const dy = player.y - this.y;
+            if (dist > 0) {
+                this.x += (dx / dist) * this.speed * dt;
+                this.y += (dy / dist) * this.speed * dt;
+            }
+        }
+    }
+
+    draw(ctx) {
+        const px = BOARD_OFFSET_X + this.x * CELL_SIZE;
+        // ふわふわ浮かせる
+        const py = BOARD_OFFSET_Y + this.y * CELL_SIZE + Math.sin(gameTime * 5 + this.bobOffset) * 3;
+        const r = this.radius * CELL_SIZE;
+
+        ctx.beginPath();
+        ctx.moveTo(px, py - r);
+        ctx.lineTo(px + r, py);
+        ctx.lineTo(px, py + r);
+        ctx.lineTo(px - r, py);
+        ctx.closePath();
+        
+        ctx.save();
+        if (gems.length < 70) {
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#00ffff';
+        }
+        ctx.fillStyle = '#00ffff';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        
+        // キラキラ
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(px - 1, py - r/2, 2, 2);
+        ctx.restore();
+    }
+}
+
+class Particle {
+    constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.vx = (Math.random() - 0.5) * 6;
+        this.vy = (Math.random() - 0.5) * 6;
+        this.life = 0.4 + Math.random() * 0.3;
+        this.maxLife = this.life;
+        this.color = color;
+        this.size = 0.08 + Math.random() * 0.1;
+        this.glow = 10;
+        this.drag = 0.94;
+    }
+    update(dt) {
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        this.vx *= this.drag; // 摩擦
+        this.vy *= this.drag;
+        this.life -= dt;
+    }
+    draw(ctx) {
+        const px = BOARD_OFFSET_X + this.x * CELL_SIZE;
+        const py = BOARD_OFFSET_Y + this.y * CELL_SIZE;
+        const alpha = this.life / this.maxLife;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        const useGlow = this.glow > 0 && particles.length <= HIGH_EFFECT_LOAD;
+        if (useGlow) {
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.shadowBlur = this.glow;
+            ctx.shadowColor = this.color;
+        }
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(px, py, this.size * CELL_SIZE, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
+class DamageText {
+    constructor(x, y, text, color = '#ffffff', life = 0.6, scale = 1) {
+        this.x = x + (Math.random() - 0.5) * 0.5;
+        this.y = y - 0.5;
+        this.text = text;
+        this.life = life;
+        this.maxLife = life;
+        this.vy = -1.5;
+        this.color = color;
+        this.scale = scale;
+    }
+    update(dt) {
+        this.y += this.vy * dt;
+        this.life -= dt;
+    }
+    draw(ctx) {
+        const px = BOARD_OFFSET_X + this.x * CELL_SIZE;
+        const py = BOARD_OFFSET_Y + this.y * CELL_SIZE;
+        const alpha = Math.max(0, this.life / this.maxLife);
+        
+        ctx.save();
+        if (damageTexts.length < 18) {
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = this.color;
+        }
+        ctx.fillStyle = this.color;
+        // クリティカル風に少し大きく
+        ctx.font = `900 ${Math.floor(CELL_SIZE * 0.5 * this.scale)}px 'Segoe UI', sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.strokeStyle = `rgba(0, 0, 0, ${alpha})`;
+        ctx.lineWidth = Math.max(4, CELL_SIZE * 0.12);
+        ctx.globalAlpha = alpha;
+        ctx.strokeText(this.text, px, py);
+        ctx.fillText(this.text, px, py);
+        ctx.restore();
+    }
+}
+
+// --- エフェクト関数 ---
+function createPlacementEffect(cx, cy) {
+    const count = particles.length > HIGH_EFFECT_LOAD ? 3 : 6;
+    for(let i=0; i<count; i++) {
+        let p = new Particle(cx + 0.5, cy + 0.5, i % 2 === 0 ? '#ffffff' : '#89f7ff');
+        p.vx *= 0.8; p.vy *= 0.8;
+        p.size *= 0.75;
+        addParticle(p);
+    }
+}
+
+function createFlipEffect(cells) {
+    const maxVisualCells = particles.length > HIGH_EFFECT_LOAD ? 6 : 10;
+    const step = Math.max(1, Math.ceil(cells.length / maxVisualCells));
+
+    for(let index = 0; index < cells.length; index += step) {
+        const cell = cells[index];
+        if (shockwaves.length < MAX_SHOCKWAVES - 2) {
+            addShockwave(new Shockwave(cell.x + 0.5, cell.y + 0.5, 0.12, 0.85, '#ffffff', 0.18));
+        }
+
+        const particleCount = particles.length > HIGH_EFFECT_LOAD ? 5 : 9;
+        for(let i=0; i<particleCount; i++) {
+            const colors = ['#ffffff', '#7cf7ff', '#a66bff', '#ffd84a'];
+            let p = new Particle(cell.x + 0.5, cell.y + 0.5, colors[i % colors.length]);
+            p.vx *= 3.0; p.vy *= 3.0; // 勢いよく弾け飛ぶ
+            p.drag = 0.9;
+            p.glow = particles.length > HIGH_EFFECT_LOAD ? 0 : 16;
+            addParticle(p);
+        }
+    }
+}
+
+function createLineAttacks(cx, cy, flippedList, baseDamage) {
+    const lines = new Map();
+
+    for (let cell of flippedList) {
+        const dx = Math.sign(cell.x - cx);
+        const dy = Math.sign(cell.y - cy);
+        const key = `${dx},${dy}`;
+        const distanceFromStart = Math.max(Math.abs(cell.x - cx), Math.abs(cell.y - cy));
+
+        if (!lines.has(key)) {
+            lines.set(key, { dx, dy, count: 0, maxDistance: 0 });
+        }
+
+        const line = lines.get(key);
+        line.count++;
+        line.maxDistance = Math.max(line.maxDistance, distanceFromStart);
+    }
+
+    for (let line of lines.values()) {
+        const damage = baseDamage * (0.8 + line.count * 0.25);
+        const width = 0.32 + line.count * 0.03;
+        addLineAttack(new LineAttack(
+            cx + 0.5,
+            cy + 0.5,
+            cx + 0.5 + line.dx * (line.maxDistance + 1),
+            cy + 0.5 + line.dy * (line.maxDistance + 1),
+            damage,
+            width,
+            line.count
+        ));
+
+        const particleCount = Math.min(line.count * 3, particles.length > HIGH_EFFECT_LOAD ? 6 : 12);
+        for (let i = 0; i < particleCount; i++) {
+            const t = Math.random();
+            const x = cx + 0.5 + line.dx * (line.maxDistance + 1) * t;
+            const y = cy + 0.5 + line.dy * (line.maxDistance + 1) * t;
+            const p = new Particle(x, y, i % 2 === 0 ? '#7cf7ff' : '#ffffff');
+            p.vx += line.dx * (4 + Math.random() * 4);
+            p.vy += line.dy * (4 + Math.random() * 4);
+            p.size *= 0.85;
+            p.glow = particles.length > HIGH_EFFECT_LOAD ? 0 : 18;
+            addParticle(p);
+        }
+    }
+}
+
+// --- ゲームロジック ---
+
+function initGame() {
+    resizeCanvas();
+    
+    // 盤面初期化
+    board = [];
+    for (let y = 0; y < BOARD_ROWS; y++) {
+        board[y] = [];
+        for (let x = 0; x < BOARD_COLS; x++) {
+            board[y][x] = STATE_EMPTY;
+        }
+    }
+
+    player = new Player();
+    enemies = [];
+    gems = [];
+    damageAreas = [];
+    lineAttacks = [];
+    particles = [];
+    shockwaves = [];
+    damageTexts = [];
+    flippableCache = [];
+    
+    feverGauge = 0;
+    isFever = false;
+    feverTimer = 0;
+    feverIntroTimer = 0;
+    bossActive = false;
+    bossEnemy = null;
+    nextBossTime = BOSS_INTERVAL;
+    bossDefeatCount = 0;
+    duelMessageTimer = 0;
+    
+    gameTime = 0;
+    lastTime = performance.now();
+    gameState = 'PLAYING';
+    shakeAmount = 0;
+
+    // 初期配置（中央に白石）
+    board[Math.floor(player.y)][Math.floor(player.x)] = STATE_WHITE;
+    updateFlippableCache();
+
+    updateUI();
+    
+    ui.startModal.classList.add('hidden');
+    ui.gameOverModal.classList.add('hidden');
+    ui.levelUpModal.classList.add('hidden');
+    
+    requestAnimationFrame(gameLoop);
+}
+
+function spawnEnemy() {
+    let x, y;
+    // 画面外からスポーン
+    if (Math.random() < 0.5) {
+        x = Math.random() < 0.5 ? -1 : BOARD_COLS + 1;
+        y = Math.random() * BOARD_ROWS;
+    } else {
+        x = Math.random() * BOARD_COLS;
+        y = Math.random() < 0.5 ? -1 : BOARD_ROWS + 1;
+    }
+
+    let type = 0;
+    const rand = Math.random();
+    if (gameTime > 30 && rand < 0.25) type = 1; // 30秒からスピード追加
+    if (gameTime > 60 && rand < 0.15) type = 2; // 60秒からタンク追加
+
+    enemies.push(new Enemy(x, y, type));
+}
+
+function paintEnemyTerritory(cx, cy, radius) {
+    let painted = false;
+    for (let y = cy - radius; y <= cy + radius; y++) {
+        for (let x = cx - radius; x <= cx + radius; x++) {
+            if (x < 0 || x >= BOARD_COLS || y < 0 || y >= BOARD_ROWS) continue;
+            if (board[y][x] !== STATE_BLACK) {
+                board[y][x] = STATE_BLACK;
+                painted = true;
+            }
+        }
+    }
+    if (painted) updateFlippableCache();
+}
+
+function startBossMatch() {
+    bossActive = true;
+    duelMessageTimer = 2.2;
+    shakeAmount = 22;
+
+    enemies = [];
+    damageAreas = [];
+    lineAttacks = [];
+    shockwaves = [];
+    particles = [];
+
+    const bossX = player.x < BOARD_COLS / 2 ? BOARD_COLS - 3 : 3;
+    const bossY = BOARD_ROWS / 2;
+    bossEnemy = new Enemy(bossX, bossY, 3);
+    enemies.push(bossEnemy);
+
+    paintEnemyTerritory(Math.floor(bossEnemy.x), Math.floor(bossEnemy.y), 2);
+    addShockwave(new Shockwave(bossEnemy.x, bossEnemy.y, 0.4, 4.2, '#ff2f6d', 0.85));
+    addDamageText(new DamageText(BOARD_COLS / 2, BOARD_ROWS / 2 - 1.6, 'DUEL', '#ffd84a', 1.6, 1.9));
+    updateUI();
+}
+
+function finishBossMatch() {
+    if (!bossActive) return;
+    bossActive = false;
+    bossEnemy = null;
+    bossDefeatCount++;
+    nextBossTime = gameTime + BOSS_INTERVAL;
+    duelMessageTimer = 1.3;
+    shakeAmount = 24;
+    feverGauge = Math.min(MAX_FEVER, feverGauge + 35);
+    addDamageText(new DamageText(player.x, player.y - 0.8, 'BOSS DOWN', '#ffd84a', 1.4, 1.25));
+    updateUI();
+}
+
+// --- アップグレードシステム ---
+const UPGRADES = [
+    { id: 'cooldown', title: '自動配置UP', desc: '通常時に足元に石を置く間隔が短くなる', apply: () => player.placeCooldown = Math.max(0.2, player.placeCooldown * 0.7) },
+    { id: 'damage', title: '反転ダメージUP', desc: 'フリップ時のライン攻撃と爆発ダメージが増加', apply: () => player.blastDamage += 25 },
+    { id: 'radius', title: '爆破範囲拡大', desc: 'フリップ爆発の巻き込み範囲が広がる', apply: () => player.blastRadiusMult += 0.25 },
+    { id: 'speed', title: '移動速度UP', desc: 'プレイヤーの足が速くなる', apply: () => player.speedMult += 0.2 },
+    { id: 'magnet', title: '吸引力UP', desc: '経験値を吸い寄せる範囲が広がる', apply: () => player.magnetRange += 1.5 },
+    { id: 'heal', title: '最大HP＆回復', desc: '最大HP+20、さらにHPを全回復', apply: () => { player.maxHp += 20; player.hp = player.maxHp; } }
+];
+
+function triggerLevelUp() {
+    gameState = 'PAUSED';
+    ui.levelUpModal.classList.remove('hidden');
+    
+    const shuffled = [...UPGRADES].sort(() => 0.5 - Math.random());
+    currentUpgradeChoices = shuffled.slice(0, 3);
+    selectedUpgradeIndex = 0; // デフォルトで一番上を選択
+    
+    renderUpgradeChoices();
+}
+
+function renderUpgradeChoices() {
+    ui.upgradeContainer.innerHTML = '';
+    currentUpgradeChoices.forEach((upg, index) => {
+        const btn = document.createElement('button');
+        // 選択状態のクラスを付与
+        btn.className = `upgrade-btn ${index === selectedUpgradeIndex ? 'selected' : ''}`;
+        btn.innerHTML = `<span class="upgrade-title">${upg.title}</span><span class="upgrade-desc">${upg.desc}</span>`;
+        // マウスオーバーでもインデックスを更新
+        btn.onmouseenter = () => {
+            selectedUpgradeIndex = index;
+            renderUpgradeChoices();
+        };
+        btn.onclick = () => {
+            upg.apply();
+            resumeGame();
+        };
+        ui.upgradeContainer.appendChild(btn);
+    });
+}
+
+function resumeGame() {
+    ui.levelUpModal.classList.add('hidden');
+    gameState = 'PLAYING';
+    lastTime = performance.now(); 
+    requestAnimationFrame(gameLoop);
+}
+
+function gameOver() {
+    gameState = 'GAMEOVER';
+    document.getElementById('result-time').innerText = `生存時間: ${formatTime(gameTime)}`;
+    document.getElementById('result-level').innerText = `到達レベル: ${player.level}`;
+    ui.gameOverModal.classList.remove('hidden');
+}
+
+// --- メインループ ---
+function update(dt) {
+    gameTime += dt;
+
+    player.update(dt);
+
+    if (!bossActive && gameTime >= nextBossTime) {
+        startBossMatch();
+    }
+
+    if (!bossActive) {
+        // 敵スポーン (時間が経つほど増える)
+        const spawnRate = Math.max(0.15, 1.2 - (gameTime / 100));
+        // 同時出現数も増やす
+        const spawnCount = 1 + Math.floor(gameTime / 45); 
+        
+        if (Math.random() < dt / spawnRate) {
+            for(let i=0; i<spawnCount; i++) spawnEnemy();
+        }
+    }
+
+    enemies.forEach(e => e.update(dt));
+    damageAreas.forEach(d => d.update(dt));
+    lineAttacks.forEach(a => a.update(dt));
+    
+    for (let i = gems.length - 1; i >= 0; i--) {
+        let g = gems[i];
+        g.update(dt);
+        if (distance(g.x, g.y, player.x, player.y) < player.radius + g.radius) {
+            player.gainExp(g.value);
+            gems.splice(i, 1);
+        }
+    }
+
+    particles.forEach(p => p.update(dt));
+    shockwaves.forEach(s => s.update(dt));
+    damageTexts.forEach(t => t.update(dt));
+
+    damageAreas = damageAreas.filter(d => d.life > 0);
+    lineAttacks = lineAttacks.filter(a => a.life > 0);
+    particles = particles.filter(p => p.life > 0);
+    shockwaves = shockwaves.filter(s => s.life > 0);
+    damageTexts = damageTexts.filter(t => t.life > 0);
+
+    if (shakeAmount > 0) {
+        shakeAmount -= dt * 30;
+        if (shakeAmount < 0) shakeAmount = 0;
+    }
+
+    if (feverIntroTimer > 0) {
+        feverIntroTimer = Math.max(0, feverIntroTimer - dt);
+    }
+
+    if (duelMessageTimer > 0) {
+        duelMessageTimer = Math.max(0, duelMessageTimer - dt);
+    }
+}
+
+function drawBoard() {
+    // 盤面背景（深い緑）
+    if (isFever) {
+        // フィーバー中は背景をサイケデリックに
+        const hue = (gameTime * 200) % 360;
+        const grad = ctx.createLinearGradient(BOARD_OFFSET_X, BOARD_OFFSET_Y, BOARD_OFFSET_X + BOARD_COLS * CELL_SIZE, BOARD_OFFSET_Y + BOARD_ROWS * CELL_SIZE);
+        grad.addColorStop(0, `hsl(${hue}, 70%, 18%)`);
+        grad.addColorStop(0.55, `hsl(${(hue + 80) % 360}, 62%, 12%)`);
+        grad.addColorStop(1, `hsl(${(hue + 180) % 360}, 70%, 16%)`);
+        ctx.fillStyle = grad;
+    } else {
+        const grad = ctx.createLinearGradient(BOARD_OFFSET_X, BOARD_OFFSET_Y, BOARD_OFFSET_X, BOARD_OFFSET_Y + BOARD_ROWS * CELL_SIZE);
+        grad.addColorStop(0, '#183a35');
+        grad.addColorStop(0.5, '#102d2b');
+        grad.addColorStop(1, '#081716');
+        ctx.fillStyle = grad;
+    }
+    ctx.fillRect(BOARD_OFFSET_X, BOARD_OFFSET_Y, BOARD_COLS * CELL_SIZE, BOARD_ROWS * CELL_SIZE);
+
+    // グリッド線
+    ctx.strokeStyle = isFever ? 'rgba(255,255,255,0.18)' : 'rgba(120, 255, 220, 0.12)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 0; x <= BOARD_COLS; x++) {
+        ctx.moveTo(BOARD_OFFSET_X + x * CELL_SIZE, BOARD_OFFSET_Y);
+        ctx.lineTo(BOARD_OFFSET_X + x * CELL_SIZE, BOARD_OFFSET_Y + BOARD_ROWS * CELL_SIZE);
+    }
+    for (let y = 0; y <= BOARD_ROWS; y++) {
+        ctx.moveTo(BOARD_OFFSET_X, BOARD_OFFSET_Y + y * CELL_SIZE);
+        ctx.lineTo(BOARD_OFFSET_X + BOARD_COLS * CELL_SIZE, BOARD_OFFSET_Y + y * CELL_SIZE);
+    }
+    ctx.stroke();
+
+    // 白マスは安全地帯として、盤面にも薄い発光を出す
+    const safeGlow = 0.11 + Math.sin(gameTime * 3.2) * 0.025;
+    ctx.fillStyle = `rgba(160, 230, 255, ${safeGlow})`;
+    for (let y = 0; y < BOARD_ROWS; y++) {
+        for (let x = 0; x < BOARD_COLS; x++) {
+            if (board[y][x] === STATE_WHITE) {
+                ctx.fillRect(
+                    BOARD_OFFSET_X + x * CELL_SIZE + 1,
+                    BOARD_OFFSET_Y + y * CELL_SIZE + 1,
+                    CELL_SIZE - 2,
+                    CELL_SIZE - 2
+                );
+            }
+        }
+    }
+
+    // ハイライト（フリップ可能なマス）の描画
+    // ふわふわ点滅させる
+    const pulse = 0.5 + Math.sin(gameTime * 8) * 0.3;
+    ctx.save();
+    ctx.globalCompositeOperation = flippableCache.length < 60 ? 'lighter' : 'source-over';
+    for (let cell of flippableCache) {
+        const x = BOARD_OFFSET_X + cell.x * CELL_SIZE;
+        const y = BOARD_OFFSET_Y + cell.y * CELL_SIZE;
+        ctx.fillStyle = `rgba(255, 218, 74, ${pulse * 0.35})`;
+        ctx.fillRect(
+            x + 2, 
+            y + 2, 
+            CELL_SIZE - 4, 
+            CELL_SIZE - 4
+        );
+        ctx.strokeStyle = `rgba(255, 248, 180, ${pulse})`;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 4, y + 4, CELL_SIZE - 8, CELL_SIZE - 8);
+    }
+    ctx.restore();
+
+    // 石の描画
+    const r = CELL_SIZE * 0.42;
+    for (let y = 0; y < BOARD_ROWS; y++) {
+        for (let x = 0; x < BOARD_COLS; x++) {
+            const state = board[y][x];
+            if (state !== STATE_EMPTY) {
+                const px = BOARD_OFFSET_X + x * CELL_SIZE + CELL_SIZE / 2;
+                const py = BOARD_OFFSET_Y + y * CELL_SIZE + CELL_SIZE / 2;
+                
+                // ドロップシャドウ
+                ctx.beginPath();
+                ctx.arc(px + 2, py + 2, r, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                ctx.fill();
+
+                // 本体
+                ctx.beginPath();
+                ctx.arc(px, py, r, 0, Math.PI * 2);
+
+                if (state === STATE_BLACK) {
+                    const grad = ctx.createRadialGradient(px - r*0.3, py - r*0.3, r*0.1, px, py, r);
+                    grad.addColorStop(0, '#666');
+                    grad.addColorStop(1, '#0a0a0a');
+                    ctx.fillStyle = grad;
+                } else if (state === STATE_WHITE) {
+                    const grad = ctx.createRadialGradient(px - r*0.3, py - r*0.3, r*0.1, px, py, r);
+                    grad.addColorStop(0, '#fff');
+                    grad.addColorStop(1, '#aaa');
+                    ctx.fillStyle = grad;
+                }
+                
+                ctx.fill();
+            }
+        }
+    }
+}
+
+function drawJoystick() {
+    if (!joystick.active) return;
+    
+    ctx.beginPath();
+    ctx.arc(joystick.startX, joystick.startY, 40, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(joystick.currentX, joystick.currentY, 20, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.fill();
+}
+
+function draw() {
+    const bg = ctx.createRadialGradient(canvas.width * 0.5, canvas.height * 0.42, 0, canvas.width * 0.5, canvas.height * 0.5, Math.max(canvas.width, canvas.height) * 0.7);
+    bg.addColorStop(0, '#101b20');
+    bg.addColorStop(0.55, '#06080d');
+    bg.addColorStop(1, '#010204');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    if (shakeAmount > 0) {
+        const sx = (Math.random() - 0.5) * shakeAmount;
+        const sy = (Math.random() - 0.5) * shakeAmount;
+        ctx.translate(sx, sy);
+    }
+
+    drawBoard();
+    gems.forEach(g => g.draw(ctx));
+    damageAreas.forEach(d => d.draw(ctx));
+    lineAttacks.forEach(a => a.draw(ctx));
+    shockwaves.forEach(s => s.draw(ctx));
+    enemies.forEach(e => e.draw(ctx));
+    particles.forEach(p => p.draw(ctx));
+    if (player) player.draw(ctx);
+    damageTexts.forEach(t => t.draw(ctx));
+
+    ctx.restore();
+
+    drawFeverIntro();
+    drawDuelMessage();
+    drawJoystick();
+}
+
+function drawFeverIntro() {
+    if (feverIntroTimer <= 0) return;
+
+    const t = feverIntroTimer;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.font = `900 ${Math.floor(Math.min(canvas.width, canvas.height) * 0.12)}px 'Segoe UI', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowBlur = 28;
+    ctx.shadowColor = '#ffd84a';
+    ctx.strokeStyle = `rgba(0, 0, 0, ${t})`;
+    ctx.lineWidth = 8;
+    ctx.fillStyle = `rgba(255, 236, 120, ${t})`;
+    ctx.strokeText('FEVER', canvas.width / 2, canvas.height / 2);
+    ctx.fillText('FEVER', canvas.width / 2, canvas.height / 2);
+    ctx.restore();
+}
+
+function drawDuelMessage() {
+    if (duelMessageTimer <= 0) return;
+
+    const alpha = Math.min(1, duelMessageTimer);
+    const text = bossActive ? '1 ON 1 DUEL' : 'BOSS DOWN';
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.font = `900 ${Math.floor(Math.min(canvas.width, canvas.height) * 0.075)}px 'Segoe UI', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowBlur = 22;
+    ctx.shadowColor = bossActive ? '#ff2f6d' : '#ffd84a';
+    ctx.strokeStyle = `rgba(0, 0, 0, ${alpha})`;
+    ctx.lineWidth = 7;
+    ctx.fillStyle = bossActive ? `rgba(255, 47, 109, ${alpha})` : `rgba(255, 216, 74, ${alpha})`;
+    ctx.strokeText(text, canvas.width / 2, canvas.height * 0.25);
+    ctx.fillText(text, canvas.width / 2, canvas.height * 0.25);
+    ctx.restore();
+}
+
+function updateUI() {
+    if (!player) return;
+    const expPercent = (player.exp / player.expToNext) * 100;
+    ui.expBar.style.width = `${expPercent}%`;
+    
+    // フィーバーゲージ
+    if (isFever) {
+        ui.feverBar.style.width = '100%';
+    } else {
+        const feverPercent = (feverGauge / MAX_FEVER) * 100;
+        ui.feverBar.style.width = `${feverPercent}%`;
+    }
+
+    const hpPercent = Math.max(0, (player.hp / player.maxHp) * 100);
+    ui.hpBar.style.width = `${hpPercent}%`;
+
+    if (bossActive && bossEnemy && bossEnemy.hp > 0) {
+        const bossPercent = Math.max(0, (bossEnemy.hp / bossEnemy.maxHp) * 100);
+        ui.bossBar.style.width = `${bossPercent}%`;
+        ui.bossBarContainer.classList.remove('hidden');
+        ui.bossLabel.classList.remove('hidden');
+        ui.bossLabel.innerText = `DUEL BOSS ${Math.ceil(bossEnemy.hp)} / ${Math.ceil(bossEnemy.maxHp)}`;
+    } else {
+        ui.bossBarContainer.classList.add('hidden');
+        ui.bossLabel.classList.add('hidden');
+    }
+    
+    ui.level.innerText = `LV ${player.level}`;
+    ui.time.innerText = formatTime(gameTime);
+}
+
+function gameLoop(timestamp) {
+    if (gameState === 'PLAYING') {
+        const dt = (timestamp - lastTime) / 1000;
+        lastTime = timestamp;
+        
+        if (dt < 0.1) {
+            update(dt);
+            draw();
+            updateUI(); 
+        }
+        
+        requestAnimationFrame(gameLoop);
+    }
+}
+
+// --- 入力ハンドリング ---
+window.addEventListener('keydown', e => { 
+    if (keys.hasOwnProperty(e.key)) keys[e.key] = true; 
+    
+    // レベルアップ時のキーボード操作
+    if (gameState === 'PAUSED' && !ui.levelUpModal.classList.contains('hidden')) {
+        if (e.key === 'ArrowUp' || e.key === 'w') {
+            selectedUpgradeIndex = Math.max(0, selectedUpgradeIndex - 1);
+            renderUpgradeChoices();
+        } else if (e.key === 'ArrowDown' || e.key === 's') {
+            selectedUpgradeIndex = Math.min(currentUpgradeChoices.length - 1, selectedUpgradeIndex + 1);
+            renderUpgradeChoices();
+        } else if (e.key === 'Enter' || e.key === ' ') {
+            if (currentUpgradeChoices[selectedUpgradeIndex]) {
+                currentUpgradeChoices[selectedUpgradeIndex].apply();
+                resumeGame();
+            }
+        }
+    }
+});
+window.addEventListener('keyup', e => { if (keys.hasOwnProperty(e.key)) keys[e.key] = false; });
+
+function handlePointerDown(e) {
+    if (gameState !== 'PLAYING' || e.target.tagName === 'BUTTON') return;
+    e.preventDefault();
+    const x = e.touches ? e.touches[0].clientX : e.clientX;
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    joystick.active = true;
+    joystick.startX = x; joystick.startY = y;
+    joystick.currentX = x; joystick.currentY = y;
+    joystick.vectorX = 0; joystick.vectorY = 0;
+}
+
+function handlePointerMove(e) {
+    if (!joystick.active) return;
+    e.preventDefault();
+    const x = e.touches ? e.touches[0].clientX : e.clientX;
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    const maxDist = 40;
+    let dx = x - joystick.startX;
+    let dy = y - joystick.startY;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist > maxDist) { dx = (dx / dist) * maxDist; dy = (dy / dist) * maxDist; }
+    joystick.currentX = joystick.startX + dx;
+    joystick.currentY = joystick.startY + dy;
+
+    if (dist > 0) {
+        joystick.vectorX = dx / maxDist;
+        joystick.vectorY = dy / maxDist;
+    }
+}
+
+function handlePointerUp() {
+    joystick.active = false;
+    joystick.vectorX = 0; joystick.vectorY = 0;
+}
+
+const interactionTarget = document.getElementById('game-container');
+interactionTarget.addEventListener('touchstart', handlePointerDown, {passive: false});
+interactionTarget.addEventListener('touchmove', handlePointerMove, {passive: false});
+interactionTarget.addEventListener('touchend', handlePointerUp);
+interactionTarget.addEventListener('mousedown', handlePointerDown);
+window.addEventListener('mousemove', handlePointerMove);
+window.addEventListener('mouseup', handlePointerUp);
+
+// --- 初期化 ---
+window.addEventListener('resize', () => {
+    resizeCanvas();
+    if(gameState === 'START' || gameState === 'GAMEOVER') draw();
+});
+
+document.getElementById('start-btn').addEventListener('click', initGame);
+document.getElementById('restart-btn').addEventListener('click', initGame);
+
+resizeCanvas();
+ctx.fillStyle = '#0a0a0a';
+ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+</script>
+</body>
+</html>
