@@ -1523,18 +1523,27 @@ function renderUpgradeChoices() {
     ui.upgradeContainer.innerHTML = '';
     currentUpgradeChoices.forEach((upg, index) => {
         const btn = document.createElement('button');
+        btn.type = 'button';
         // 選択状態のクラスを付与
         btn.className = `upgrade-btn ${index === selectedUpgradeIndex ? 'selected' : ''}`;
         btn.innerHTML = `<span class="upgrade-title">${upg.title}</span><span class="upgrade-desc">${upg.desc}</span>`;
+        const chooseUpgrade = () => {
+            if (gameState !== 'PAUSED') return;
+            selectedUpgradeIndex = index;
+            upg.apply();
+            resumeGame();
+        };
         // マウスオーバーでもインデックスを更新
         btn.onmouseenter = () => {
             selectedUpgradeIndex = index;
             renderUpgradeChoices();
         };
-        btn.onclick = () => {
-            upg.apply();
-            resumeGame();
-        };
+        btn.addEventListener('click', chooseUpgrade);
+        btn.addEventListener('touchend', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            chooseUpgrade();
+        }, {passive: false});
         ui.upgradeContainer.appendChild(btn);
     });
 }
