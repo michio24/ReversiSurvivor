@@ -172,6 +172,10 @@
             border-radius: 16px;
             text-align: center;
             max-width: 90%;
+            max-height: calc(100vh - 24px);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
             width: 450px;
             box-shadow: 0 24px 80px rgba(0,0,0,0.85), 0 0 42px rgba(0, 224, 255, 0.18);
             border: 1px solid rgba(190, 255, 250, 0.18);
@@ -245,6 +249,7 @@
             flex-direction: column;
             gap: 5px;
             box-shadow: none;
+            touch-action: manipulation;
             outline: none; /* キーボードフォーカス時のデフォルトアウトラインを消す */
         }
 
@@ -1519,6 +1524,17 @@ function triggerLevelUp() {
     renderUpgradeChoices();
 }
 
+function chooseUpgradeByIndex(index) {
+    if (gameState !== 'PAUSED' || ui.levelUpModal.classList.contains('hidden')) return;
+
+    const upg = currentUpgradeChoices[index];
+    if (!upg) return;
+
+    selectedUpgradeIndex = index;
+    upg.apply();
+    resumeGame();
+}
+
 function renderUpgradeChoices() {
     ui.upgradeContainer.innerHTML = '';
     currentUpgradeChoices.forEach((upg, index) => {
@@ -1526,12 +1542,10 @@ function renderUpgradeChoices() {
         btn.type = 'button';
         // 選択状態のクラスを付与
         btn.className = `upgrade-btn ${index === selectedUpgradeIndex ? 'selected' : ''}`;
+        btn.dataset.upgradeIndex = index;
         btn.innerHTML = `<span class="upgrade-title">${upg.title}</span><span class="upgrade-desc">${upg.desc}</span>`;
         const chooseUpgrade = () => {
-            if (gameState !== 'PAUSED') return;
-            selectedUpgradeIndex = index;
-            upg.apply();
-            resumeGame();
+            chooseUpgradeByIndex(index);
         };
         // マウスオーバーでもインデックスを更新
         btn.onmouseenter = () => {
@@ -1874,14 +1888,27 @@ window.addEventListener('keydown', e => {
             selectedUpgradeIndex = Math.min(currentUpgradeChoices.length - 1, selectedUpgradeIndex + 1);
             renderUpgradeChoices();
         } else if (e.key === 'Enter' || e.key === ' ') {
-            if (currentUpgradeChoices[selectedUpgradeIndex]) {
-                currentUpgradeChoices[selectedUpgradeIndex].apply();
-                resumeGame();
-            }
+            chooseUpgradeByIndex(selectedUpgradeIndex);
         }
     }
 });
 window.addEventListener('keyup', e => { if (keys.hasOwnProperty(e.key)) keys[e.key] = false; });
+
+function handleUpgradePointerSelect(e) {
+    if (gameState !== 'PAUSED' || ui.levelUpModal.classList.contains('hidden')) return;
+
+    const point = e.changedTouches ? e.changedTouches[0] : e;
+    const target = document.elementFromPoint(point.clientX, point.clientY);
+    const btn = target && target.closest ? target.closest('.upgrade-btn') : null;
+    if (!btn || !ui.upgradeContainer.contains(btn)) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    chooseUpgradeByIndex(Number(btn.dataset.upgradeIndex));
+}
+
+document.addEventListener('touchend', handleUpgradePointerSelect, {capture: true, passive: false});
+document.addEventListener('pointerup', handleUpgradePointerSelect, {capture: true});
 
 function handlePointerDown(e) {
     if (gameState !== 'PLAYING' || e.target.tagName === 'BUTTON') return;
